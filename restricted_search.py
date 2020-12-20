@@ -25,13 +25,15 @@ class RestrictedSearch(TreeSearch):
         beam_scores = logprobs + prior_scores.unsqueeze(1).expand_as(logprobs)
 
         # before flattening, assign neginf for words outside of wordpool
-        beam_scores.index_fill_(-1, torch.tensor(self.wordpool.bad_ids, dtype=torch.long), neginf(logprobs.dtype))
+        bad_ids = torch.tensor(self.wordpool.bad_ids, dtype=torch.long, device=beam_scores.device)
+        beam_scores.index_fill_(-1, bad_ids, neginf(logprobs.dtype))
 
         # look for subword combinations
         if beam_scores.size(0) == self.beam_size:
             for hypid in range(self.beam_size):
+                last_word = self.get_last_word(self.partial_hyps[hypid])
                 for non_boundary_id in self.wordpool.non_boundary_ids:
-                    if self.get_last_word(self.partial_hyps[hypid]) + self.dict[non_boundary_id] not in self.wordpool.good_str:
+                    if last_word + self.dict[non_boundary_id] not in self.wordpool.good_str:
                         beam_scores[hypid][non_boundary_id] = neginf(beam_scores.dtype)
 
         # flatten and identify top hypotheses
